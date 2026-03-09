@@ -9,5 +9,5 @@
 
 1. **Клонируйте репозиторий**
    ```bash
-   git clone https://github.com/your-team/kion-moderator.git
+   git clone https://github.com/DaniilShd/kion-vlm-pose-hack.git
    cd kion-moderator
