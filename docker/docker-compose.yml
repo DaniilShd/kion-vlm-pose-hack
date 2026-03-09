@@ -1,18 +1,27 @@
-version: '3.8'
-
 services:
   app:
-    build: .
-    container_name: kion-moderator
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: hakaton-ml
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - CUDA_HOME=/usr/local/cuda
     volumes:
-      # ВАЖНО: ваши папки подключаются сюда
-      - ../src:/app/src      # код с вашего компьютера
-      - ../data:/app/data    # видео и результаты
-      - ../models:/app/models    # видео и результаты
+      - ../src:/app/src
+      - ../data:/app/data
+      - ../models:/app/models
+      - ../requirements.txt:/app/requirements.txt
     ports:
-      - "8000:8000"  # для FastAPI
-      - "7860:7860"  # для Gradio
-    command: tail -f /dev/null  # просто держим контейнер работающим
+      - "8000:8000"
+      - "7860:7860"
+    command: tail -f /dev/null
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
