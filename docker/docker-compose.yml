@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: kion-moderator
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      # ВАЖНО: ваши папки подключаются сюда
+      - ../src:/app/src      # код с вашего компьютера
+      - ../data:/app/data    # видео и результаты
+      - ../models:/app/models    # видео и результаты
+    ports:
+      - "8000:8000"  # для FastAPI
+      - "7860:7860"  # для Gradio
+    command: tail -f /dev/null  # просто держим контейнер работающим

@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Python distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Logs
+*.log
+logs/
+
+# Data directories - но с исключениями
+/data/uploads/*
+/data/results/*
+/data/test_videos/*
+
+# Но сохраняем структуру папок (git сохранит пустые папки)
+!/data/uploads/.gitkeep
+!/data/results/.gitkeep
+!/data/test_videos/.gitkeep
+
+# Models (обычно большие файлы)
+/models/*
+!/models/.gitkeep
+
+# Docker
+/docker/*.tmp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Secrets and keys
+*.pem
+*.key
+*.crt
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
