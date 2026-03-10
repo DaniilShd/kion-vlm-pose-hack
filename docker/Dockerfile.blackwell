@@ -1,0 +1,95 @@
+FROM nvidia/cuda:13.0.1-devel-ubuntu22.04  
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-venv \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    git \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libopenblas-dev \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Отдельно компилируем bitsandbytes для CUDA 13
+# Устанавливаем bitsandbytes из исходников с правильной компиляцией
+RUN pip uninstall -y bitsandbytes || true && \
+    cd /tmp && \
+    git clone https://github.com/bitsandbytes-foundation/bitsandbytes.git && \
+    cd bitsandbytes && \
+    git checkout 0.45.4 && \
+    # Компилируем с CMake для CUDA 13
+    cmake -DCOMPUTE_BACKEND=cuda -S . && \
+    make && \
+    pip install -e . && \
+    cd / && rm -rf /tmp/bitsandbytes
+
+
+# Создаем виртуальное окружение
+RUN python3 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+
+# Обновляем pip
+RUN pip install -U pip setuptools wheel
+
+# Устанавливаем PyTorch для CUDA 13.0
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu130 \
+    --timeout 1000 \
+    --retries 20
+
+# Устанавливаем CUDA библиотеки
+RUN pip install --no-cache-dir \
+    nvidia-cuda-runtime-cu12 \
+    nvidia-cublas-cu12 \
+    nvidia-cudnn-cu12 \
+    nvidia-cuda-nvrtc-cu12
+
+WORKDIR /app
+
+# Копируем requirements
+COPY requirements.txt .
+
+# Устанавливаем зависимости из requirements.txt
+RUN pip install -r requirements.txt
+
+# Создаем необходимые директории
+RUN mkdir -p /app/src /app/data /app/models /app/cache /app/uploads /app/results /app/scripts
+
+# Копируем остальной код
+COPY .. /app
+
+# Настраиваем переменные окружения CUDA
+ENV CUDA_HOME=/usr/local/cuda
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib:/usr/local/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV PYTHONPATH=/app
+
+# Добавляем переменную для bitsandbytes
+ENV BNB_CUDA_VERSION=130
+
+# Предзагрузка моделей (опционально, для ускорения)
+RUN python -c "from ultralytics import YOLO; YOLO('yolov8n-pose.pt')" || true
+
+# Проверка CUDA и основных пакетов
+RUN python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"None\"}')" && \
+    python -c "import numpy; print(f'NumPy: {numpy.__version__}')" && \
+    python -c "import cv2; print(f'OpenCV: {cv2.__version__}')" && \
+    python -c "import ultralytics; print(f'Ultralytics: {ultralytics.__version__}')" && \
+    python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
+
+CMD ["tail", "-f", "/dev/null"]

@@ -2,26 +2,40 @@ services:
   app:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.blackwell
     container_name: hakaton-ml
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - CUDA_VISIBLE_DEVICES=0
       - CUDA_HOME=/usr/local/cuda
+      # Для bitsandbytes
+      - BNB_CUDA_VERSION=130
+      # Переменные для Hugging Face
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - TRANSFORMERS_CACHE=/app/cache/huggingface
+      - HF_HOME=/app/cache/huggingface
     volumes:
       - ../src:/app/src
+      - ../config:/app/config
       - ../data:/app/data
       - ../models:/app/models
       - ../requirements.txt:/app/requirements.txt
+      - ../main.py:/app/main.py
+      - ../scripts:/app/scripts
     ports:
-      - "8000:8000"
-      - "7860:7860"
+      - "8000:8000"  # FastAPI
+      - "7860:7860"  # Gradio
     command: tail -f /dev/null
     deploy:
       resources:
         reservations:
-          devices:
+          devices: 
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    shm_size: '16gb'  # Важно для работы с видео
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    working_dir: /app

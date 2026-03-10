@@ -1,0 +1,8 @@
+# Пути для данных
+data_dir: "./data"
+test_videos: "./data/test_videos"
+results: "./data/results"
+uploads: "./data/uploads"
+
+# Пути для моделей
+models: "./models"

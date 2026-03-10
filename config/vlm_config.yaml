@@ -1,0 +1,27 @@
+# Настройки VLM модели
+vlm:
+  model:
+    name: "llava"  # или "minigpt4", "blip2" и т.д.
+    type: "image_text"  # image_text, video_text
+    device: "cuda"
+    
+  generation:
+    max_length: 100
+    temperature: 0.7
+    top_p: 0.9
+    do_sample: true
+  
+  prompts:
+    default: "Опиши что происходит на видео"
+    violence: "Есть ли насилие на видео?"
+    smoke: "Виден ли дым или огонь?"
+  
+  paths:
+    test_data: "./data/test_videos"
+    results: "./data/results/vlm"
+    models: "./models/vlm"
+    cache: "./cache/vlm"
+  
+  logging:
+    verbose: true
+    save_images: false
