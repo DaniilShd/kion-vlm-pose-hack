@@ -1,27 +1,33 @@
 # Настройки VLM модели
 vlm:
   model:
-    name: "llava"  # или "minigpt4", "blip2" и т.д.
-    type: "image_text"  # image_text, video_text
+    name: "THUDM/glm-4v-9b"  # или "THUDM/glm-4.1v-9b-thinking"
+    type: "image_text"
     device: "cuda"
+    use_4bit: true
     
   generation:
-    max_length: 100
-    temperature: 0.7
-    top_p: 0.9
-    do_sample: true
+    max_new_tokens: 512
+    temperature: 0.1
+    top_p: 0.95
+    do_sample: false
   
   prompts:
-    default: "Опиши что происходит на видео"
-    violence: "Есть ли насилие на видео?"
-    smoke: "Виден ли дым или огонь?"
-  
+    moderation: |
+      Ты — система модерации контента. Посмотри на картинку и ответь строго в формате JSON.
+      Поля ответа:
+      - description: краткое описание (1 предложение)
+      - has_smoking: true/false
+      - has_same_gender_intimacy: true/false
+      - has_violence: true/false
+      - participants_count: число людей
+      - confidence: high/medium/low
+    
   paths:
     test_data: "./data/test_videos"
-    results: "./data/results/vlm"
-    models: "./models/vlm"
+    results: "./data/results"
     cache: "./cache/vlm"
   
   logging:
     verbose: true
-    save_images: false
+    save_responses: true

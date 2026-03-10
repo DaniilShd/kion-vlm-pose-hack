@@ -4,5 +4,7 @@ test_videos: "./data/test_videos"
 results: "./data/results"
 uploads: "./data/uploads"
 
+cache: "./cache"
+
 # Пути для моделей
 models: "./models"

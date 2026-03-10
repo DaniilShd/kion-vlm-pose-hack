@@ -6,6 +6,7 @@ services:
     container_name: hakaton-ml
     runtime: nvidia
     environment:
+      - HUGGINGFACE_HUB_TOKEN=${HUGGINGFACE_TOKEN}
       - NVIDIA_VISIBLE_DEVICES=all
       - CUDA_VISIBLE_DEVICES=0
       - CUDA_HOME=/usr/local/cuda
@@ -19,6 +20,8 @@ services:
       - ../src:/app/src
       - ../config:/app/config
       - ../data:/app/data
+      - ../cache:/app/cache
+      - ../logs:/app/logs
       - ../models:/app/models
       - ../requirements.txt:/app/requirements.txt
       - ../main.py:/app/main.py
@@ -34,7 +37,7 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    shm_size: '16gb'  # Важно для работы с видео
+    shm_size: '16gb' 
     ulimits:
       memlock: -1
       stack: 67108864
