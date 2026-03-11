@@ -5,6 +5,10 @@ from mmaction.apis import init_recognizer, inference_recognizer
 from mmaction.datasets import build_dataset
 import os
 import yaml
+import json
+import time
+import logging
+from datetime import datetime
 from .stgcn_converter import STGCNConverter
 
 class STGCNRecognizer:
@@ -13,6 +17,20 @@ class STGCNRecognizer:
     """
     def __init__(self, config_path="config/stgcn_ntu60_2d.py", 
                  checkpoint_path="models/stgcn_ntu60_2d.pth"):
+        
+        # загружаем конфиги
+        with open("config/paths_config.yaml", 'r') as f:
+            self.paths = yaml.safe_load(f)
+        
+        # настройка логирования
+        log_dir = self.paths['logs']
+        os.makedirs(log_dir, exist_ok=True)
+        logging.basicConfig(
+            filename=f'{log_dir}/stgcn_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
         
         self.converter = STGCNConverter()
         
@@ -41,17 +59,31 @@ class STGCNRecognizer:
         
         # загружаем модель
         print(f"Загрузка ST-GCN из {checkpoint_path}")
+        self.logger.info(f"Загрузка модели из {checkpoint_path}")
+        
+        start_time = time.time()
         self.model = init_recognizer(
             config_path,
             checkpoint_path,
             device='cuda' if torch.cuda.is_available() else 'cpu'
         )
-        print("Модель загружена!")
+        load_time = time.time() - start_time
+        
+        self.logger.info(f"Модель загружена за {load_time:.2f} сек")
+        print(f"Модель загружена за {load_time:.2f} сек!")
     
     def recognize_from_npy(self, npy_path, meta_path):
         """
         Распознает действия по .npy файлу с ключевыми точками
         """
+        self.logger.info(f"Распознавание из {npy_path}")
+        
+        # размер файла
+        file_size = os.path.getsize(npy_path) / (1024 * 1024)  # в MB
+        self.logger.info(f"Размер файла: {file_size:.2f} MB")
+        
+        start_time = time.time()
+        
         # конвертируем в формат ST-GCN
         keypoints = self.converter.convert_npy_to_stgcn(
             npy_path, 
@@ -60,30 +92,33 @@ class STGCNRecognizer:
             max_persons=2
         )
         
+        convert_time = time.time() - start_time
+        self.logger.info(f"Конвертация за {convert_time:.2f} сек")
+        
         # подготавливаем данные для модели
-        # ST-GCN в MMAction2 ожидает список
         data = [keypoints]
         
         # инференс
+        inference_start = time.time()
         results = inference_recognizer(self.model, data)
+        inference_time = time.time() - inference_start
+        
+        self.logger.info(f"Инференс за {inference_time:.2f} сек")
         
         # обрабатываем результаты
-        return self._process_results(results)
-    
-    def recognize_from_array(self, keypoints_array):
-        """
-        Распознает по уже сконвертированному массиву
-        """
-        data = [keypoints_array]
-        results = inference_recognizer(self.model, data)
-        return self._process_results(results)
+        actions = self._process_results(results)
+        
+        total_time = time.time() - start_time
+        self.logger.info(f"Всего обработано за {total_time:.2f} сек, найдено {len(actions)} действий")
+        
+        return actions
     
     def _process_results(self, results):
         """
         Обрабатывает результаты от модели
         """
-        # results - список словарей с вероятностями
         if not results:
+            self.logger.warning("Нет результатов от модели")
             return []
         
         # берем топ-5 предсказаний
@@ -91,13 +126,13 @@ class STGCNRecognizer:
         
         actions = []
         for class_name, score in top5:
-            # маппим на наши классы
             mapped = self.action_map.get(class_name.lower(), 'other')
             actions.append({
                 'original_class': class_name,
                 'mapped_action': mapped,
                 'confidence': float(score)
             })
+            self.logger.debug(f"Действие: {class_name} -> {mapped} ({score:.3f})")
         
         return actions
     
@@ -109,11 +144,17 @@ class STGCNRecognizer:
         npy_path = f"{base_path}_keypoints.npy"
         meta_path = f"{base_path}_meta.json"
         
+        self.logger.info(f"Начало анализа видео: {video_name}")
+        
         if not os.path.exists(npy_path) or not os.path.exists(meta_path):
-            print(f"Файлы не найдены для {video_name}")
+            error_msg = f"Файлы не найдены для {video_name}"
+            print(error_msg)
+            self.logger.error(error_msg)
             return None
         
         print(f"\n--- Анализ {video_name} ---")
+        start_time = time.time()
+        
         actions = self.recognize_from_npy(npy_path, meta_path)
         
         # группируем по нашим классам
@@ -129,10 +170,27 @@ class STGCNRecognizer:
             top_conf = max(items, key=lambda x: x['confidence'])
             print(f"  {action}: {top_conf['confidence']:.2f} ({top_conf['original_class']})")
         
+        total_time = time.time() - start_time
+        
+        # логируем результаты
+        self.logger.info(f"Видео: {video_name}")
+        self.logger.info(f"Время анализа: {total_time:.2f} сек")
+        self.logger.info(f"Найдено действий: {len(actions)}")
+        self.logger.info(f"Уникальные классы: {list(summary.keys())}")
+        
+        # статистика по уверенности
+        confidences = [a['confidence'] for a in actions]
+        if confidences:
+            self.logger.info(f"Средняя уверенность: {np.mean(confidences):.3f}")
+            self.logger.info(f"Макс уверенность: {np.max(confidences):.3f}")
+        
+        print(f"\nВремя анализа: {total_time:.2f} сек")
+        
         return {
             'video': video_name,
             'actions': actions,
-            'summary': summary
+            'summary': summary,
+            'processing_time': total_time
         }
 
 
@@ -142,7 +200,23 @@ if __name__ == "__main__":
     recognizer = STGCNRecognizer()
     
     # анализируем видео
-    for video in ['fighting', 'smoke', 'trailer_re9']:
+    videos = ['fighting', 'smoke', 'trailer_re9']
+    all_results = {}
+    
+    for video in videos:
         result = recognizer.analyze_video(video)
         if result:
+            all_results[video] = result
             print(json.dumps(result, indent=2))
+    
+    # итоговая статистика
+    print("\n" + "="*50)
+    print("ИТОГОВАЯ СТАТИСТИКА")
+    print("="*50)
+    
+    for video, result in all_results.items():
+        print(f"\n{video}:")
+        print(f"  Время: {result['processing_time']:.2f} сек")
+        print(f"  Действий: {len(result['actions'])}")
+        for action, items in result['summary'].items():
+            print(f"    {action}: {len(items)}")

@@ -1,10 +1,11 @@
 # Настройки VLM модели
 vlm:
   model:
-    name: "THUDM/glm-4v-9b"  # или "THUDM/glm-4.1v-9b-thinking"
-    type: "image_text"
+    name: "THUDM/glm-4v-9b"
     device: "cuda"
     use_4bit: true
+    # Простой путь к папке с моделью
+    local_path: "models/glm-4v"
     
   generation:
     max_new_tokens: 512

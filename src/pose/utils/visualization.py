@@ -27,10 +27,10 @@ def draw_skeleton(frame, keypoints_list):
         else:
             person_kps_pixels = person_kps.copy()
         
-        # Рисуем только точки, которые не в左上 углу и не нулевые
+        # Рисуем только точки, которые не в углу и не нулевые
         valid_points = []
         for i, (x, y) in enumerate(person_kps_pixels):
-            # Проверяем, что точка не в左上 углу и не нулевая
+            # Проверяем, что точка не углу и не нулевая
             if x > 5 and y > 5:  # игнорируем точки слишком близко к (0,0)
                 x, y = int(x), int(y)
                 if 0 <= x < w and 0 <= y < h:
@@ -47,7 +47,7 @@ def draw_skeleton(frame, keypoints_list):
             x1, y1 = person_kps_pixels[idx1]
             x2, y2 = person_kps_pixels[idx2]
             
-            # Рисуем линию только если обе точки не в左上 углу
+            # Рисуем линию только если обе точки не в углу
             if (x1 > 5 and y1 > 5 and x2 > 5 and y2 > 5 and
                 0 <= x1 < w and 0 <= y1 < h and 
                 0 <= x2 < w and 0 <= y2 < h):
