@@ -22,12 +22,7 @@ vlm:
       - has_violence: true/false
       - participants_count: число людей
       - confidence: high/medium/low
-    
-  paths:
-    test_data: "./data/test_videos"
-    results: "./data/results"
-    cache: "./cache/vlm"
-  
+
   logging:
     verbose: true
     save_responses: true

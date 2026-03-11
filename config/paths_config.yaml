@@ -3,6 +3,7 @@ data_dir: "./data"
 test_videos: "./data/test_videos"
 results: "./data/results"
 uploads: "./data/uploads"
+logs: "./logs" 
 
 cache: "./cache"
 
