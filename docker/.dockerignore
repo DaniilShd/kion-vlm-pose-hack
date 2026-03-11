@@ -1,0 +1,16 @@
+.git
+venv
+__pycache__
+
+datasets
+data
+logs
+checkpoints
+wandb
+
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.zip
+*.tar

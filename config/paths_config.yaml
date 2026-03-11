@@ -5,6 +5,10 @@ results: "./data/results"
 uploads: "./data/uploads"
 logs: "./logs" 
 
+pose_detector: "models/yolov8n-pose.pt"
+
+glm4v_path: "models/glm-4v"
+
 cache: "./cache"
 
 # Пути для моделей

@@ -9,3 +9,4 @@ docker-compose ps
 
 echo -e "\n💻 Для входа в контейнер выполните:"
 echo "  docker exec -it kion-moderator bash"
+
