@@ -1,9 +1,11 @@
-torch==2.10.0+cu130
-torchvision==0.25.0+cu130
-torchaudio==2.10.0+cu130
+# PyTorch для CUDA 12.8 (удаляем конкретные версии, они уже установлены в Dockerfile)
+# torch
+# torchvision
+# torchaudio
+
 transformers==4.45.0
 accelerate==1.13.0
-bitsandbytes>=0.48.0
+# bitsandbytes устанавливается отдельно в Dockerfile
 safetensors==0.7.0
 numpy==2.1.1
 sentencepiece==0.2.0

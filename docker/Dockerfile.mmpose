@@ -1,4 +1,4 @@
-FROM nvidia/cuda:13.0.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -22,22 +22,22 @@ ENV PATH="/venv/bin:$PATH"
 RUN pip install -U pip setuptools wheel
 
 # -----------------------------
-# PYTORCH 2.7 nightly (CUDA 13.0)
+# PYTORCH NIGHTLY для CUDA 12.8 (поддержка RTX 5070 Ti)
 # -----------------------------
-RUN pip install --pre --no-cache-dir \
+RUN pip install --pre --no-cache-dir --timeout 100 --retries 10 \
     torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/nightly/cu130 \
-    --timeout 1000 --retries 20
+    --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # -----------------------------
 # OPENMMLAB
 # -----------------------------
 RUN pip install -U openmim
 RUN mim install mmengine
+# Устанавливаем mmcv для CUDA 12.8
 RUN pip install --no-cache-dir \
-    mmcv-full==2.2.0 \
-    -f https://download.openmmlab.com/mmcv/dist/cu130/torch2.1/index.html
-RUN pip install --no-cache-dir mmaction2
+    mmcv==2.1.0 \
+    -f https://download.openmmlab.com/mmcv/dist/cu128/torch2.6/index.html
+RUN pip install --no-cache-dir mmaction2 mmpose
 
 # -----------------------------
 # BASE ML LIBS
@@ -50,6 +50,9 @@ RUN pip install --no-cache-dir numpy scipy pandas matplotlib tqdm pyyaml pillow 
 WORKDIR /app
 COPY requirements/requirements_mmpose.txt .
 RUN pip install -r requirements_mmpose.txt
+
+# Дополнительные зависимости для работы с видео
+RUN pip install --no-cache-dir decord einops
 
 ENV PYTHONPATH=/app
 ENV CUDA_HOME=/usr/local/cuda

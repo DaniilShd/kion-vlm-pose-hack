@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   mmpose:
     build:
@@ -15,7 +13,7 @@ services:
       - ./src:/app/src
       - ./models:/app/models
       - ./cache:/app/cache
-      - ./data:/app/data  # Общая папка для файлов!
+      - ./data:/app/data
       - ./logs:/app/logs
     command: python src/mmpose_processor.py
     deploy:
@@ -36,14 +34,14 @@ services:
       - PATH=/venv/bin:$PATH
       - NVIDIA_VISIBLE_DEVICES=all
       - CUDA_VISIBLE_DEVICES=0
-      - WATCH_FOLDER=/app/data  # Следим за папкой
+      - WATCH_FOLDER=/app/data
     volumes:
       - ./src:/app/src
       - ./models:/app/models
       - ./cache:/app/cache
-      - ./data:/app/data  # Та же общая папка!
+      - ./data:/app/data
       - ./logs:/app/logs
-    command: python src/yolo_watcher.py  # Скрипт, который следит за новыми файлами
+    command: python src/yolo_watcher.py
     deploy:
       resources:
         reservations:
@@ -67,7 +65,7 @@ services:
       - ./src:/app/src
       - ./models:/app/models
       - ./cache:/app/cache
-      - ./data:/app/data  # И здесь та же папка!
+      - ./data:/app/data
       - ./logs:/app/logs
     command: python src/vlm_watcher.py
     deploy:

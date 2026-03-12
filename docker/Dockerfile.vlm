@@ -1,4 +1,4 @@
-FROM nvidia/cuda:13.0.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -22,25 +22,28 @@ ENV PATH="/venv/bin:$PATH"
 RUN pip install -U pip setuptools wheel
 
 # -----------------------------
-# PYTORCH 2.7 nightly (CUDA 13.0)
+# PYTORCH NIGHTLY для CUDA 12.8 (поддержка RTX 5070 Ti)
 # -----------------------------
-RUN pip install --pre --no-cache-dir \
+RUN pip install --pre --no-cache-dir --timeout 100 --retries 10 \
     torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/nightly/cu130 \
-    --timeout 1000 --retries 20
+    --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # -----------------------------
 # TRANSFORMERS / BNB / ACCELERATE
 # -----------------------------
 RUN pip install --no-cache-dir \
-    transformers accelerate sentencepiece
+    transformers==4.45.0 accelerate==1.13.0 safetensors==0.7.0 sentencepiece==0.2.0
+
+# Установка bitsandbytes с поддержкой CUDA 12.8
 RUN pip uninstall -y bitsandbytes || true
-RUN pip install --no-cache-dir bitsandbytes>=0.48.0
+# Пробуем установить совместимую версию
+RUN pip install --no-cache-dir bitsandbytes>=0.48.0 || \
+    pip install --no-cache-dir bitsandbytes --no-binary bitsandbytes
 
 # -----------------------------
 # BASE ML LIBS
 # -----------------------------
-RUN pip install --no-cache-dir numpy opencv-python
+RUN pip install --no-cache-dir numpy==2.1.1 opencv-python==4.13.0.92
 
 # -----------------------------
 # WORKDIR & REQUIREMENTS
@@ -49,9 +52,12 @@ WORKDIR /app
 COPY requirements/requirements_vlm.txt .
 RUN pip install -r requirements_vlm.txt
 
+# Дополнительные зависимости для интерфейса
+RUN pip install --no-cache-dir gradio==5.0.0 aiofiles==23.2.1 pandas==2.3.3 tqdm
+
 ENV PYTHONPATH=/app
 ENV CUDA_HOME=/usr/local/cuda
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}
-ENV BNB_CUDA_VERSION=130
+ENV BNB_CUDA_VERSION=128
 
 CMD ["tail", "-f", "/dev/null"]

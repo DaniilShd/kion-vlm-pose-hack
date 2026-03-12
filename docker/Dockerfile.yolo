@@ -1,4 +1,4 @@
-FROM nvidia/cuda:13.0.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -22,22 +22,21 @@ ENV PATH="/venv/bin:$PATH"
 RUN pip install -U pip setuptools wheel
 
 # -----------------------------
-# PYTORCH 2.7 nightly (CUDA 13.0)
+# PYTORCH NIGHTLY для CUDA 12.8 (поддержка RTX 5070 Ti)
 # -----------------------------
-RUN pip install --pre --no-cache-dir \
+RUN pip install --pre --no-cache-dir --timeout 100 --retries 10 \
     torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/nightly/cu130 \
-    --timeout 1000 --retries 20
+    --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # -----------------------------
 # YOLOv8 / ultralytics
 # -----------------------------
-RUN pip install --no-cache-dir ultralytics
+RUN pip install --no-cache-dir ultralytics==8.3.101 ultralytics-thop==2.0.18
 
 # -----------------------------
 # BASE ML LIBS
 # -----------------------------
-RUN pip install --no-cache-dir numpy opencv-python
+RUN pip install --no-cache-dir numpy==2.1.1 opencv-python==4.13.0.92
 
 # -----------------------------
 # WORKDIR & REQUIREMENTS
@@ -45,6 +44,9 @@ RUN pip install --no-cache-dir numpy opencv-python
 WORKDIR /app
 COPY requirements/requirements_yolo.txt .
 RUN pip install -r requirements_yolo.txt
+
+# Дополнительные зависимости
+RUN pip install --no-cache-dir decord einops pandas==2.3.3 matplotlib==3.10.8
 
 ENV PYTHONPATH=/app
 ENV CUDA_HOME=/usr/local/cuda

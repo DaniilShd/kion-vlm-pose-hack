@@ -1,6 +1,8 @@
-torch==2.10.0+cu130
-torchvision==0.25.0+cu130
-torchaudio==2.10.0+cu130
+# PyTorch для CUDA 12.8 (удаляем конкретные версии, они уже установлены в Dockerfile)
+# torch
+# torchvision
+# torchaudio
+
 ultralytics==8.3.101
 ultralytics-thop==2.0.18
 numpy==2.1.1
