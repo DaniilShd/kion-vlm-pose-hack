@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.blackwell
+      dockerfile: docker/Dockerfile
     container_name: hakaton-ml
     runtime: nvidia
     environment:

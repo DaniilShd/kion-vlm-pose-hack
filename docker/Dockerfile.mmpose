@@ -1,0 +1,58 @@
+FROM nvidia/cuda:13.0.1-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+
+# -----------------------------
+# SYSTEM DEPENDENCIES
+# -----------------------------
+RUN apt-get update && apt-get install -y \
+    python3 python3-venv python3-pip python3-dev \
+    build-essential cmake git ffmpeg \
+    libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev \
+    libgomp1 libopenblas-dev wget curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# -----------------------------
+# PYTHON ENV
+# -----------------------------
+RUN python3 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+RUN pip install -U pip setuptools wheel
+
+# -----------------------------
+# PYTORCH 2.7 nightly (CUDA 13.0)
+# -----------------------------
+RUN pip install --pre --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/nightly/cu130 \
+    --timeout 1000 --retries 20
+
+# -----------------------------
+# OPENMMLAB
+# -----------------------------
+RUN pip install -U openmim
+RUN mim install mmengine
+RUN pip install --no-cache-dir \
+    mmcv-full==2.2.0 \
+    -f https://download.openmmlab.com/mmcv/dist/cu130/torch2.1/index.html
+RUN pip install --no-cache-dir mmaction2
+
+# -----------------------------
+# BASE ML LIBS
+# -----------------------------
+RUN pip install --no-cache-dir numpy scipy pandas matplotlib tqdm pyyaml pillow opencv-python
+
+# -----------------------------
+# WORKDIR & REQUIREMENTS
+# -----------------------------
+WORKDIR /app
+COPY requirements/requirements_mmpose.txt .
+RUN pip install -r requirements_mmpose.txt
+
+ENV PYTHONPATH=/app
+ENV CUDA_HOME=/usr/local/cuda
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}
+
+CMD ["tail", "-f", "/dev/null"]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 import argparse
-from src.pose.yolo_pose_detector import PoseDetector
+from pose.yolo_pose.yolo_pose_detector import PoseDetector
 
 def main():
     parser = argparse.ArgumentParser()

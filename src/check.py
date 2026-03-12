@@ -1,270 +1,307 @@
 #!/usr/bin/env python
-"""Минимальная проверка контейнера для работы с ML моделями."""
+"""Проверка готовности Docker контейнера к работе с ML моделями."""
 
 import sys
+import logging
+from pathlib import Path
+from typing import Dict, Any, Tuple
+import traceback
+from datetime import datetime
+
 import torch
 import numpy as np
 import cv2
 import transformers
 import gradio
-import traceback
+import psutil
 
-def check_cuda():
-    """Проверка GPU и CUDA с детальной диагностикой."""
-    print("\n🔍 ПРОВЕРКА CUDA:")
-    print(f"PyTorch version: {torch.__version__}")
-    print(f"CUDA available: {torch.cuda.is_available()}")
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+class ContainerHealthCheck:
+    """Проверка здоровья контейнера с ML окружением."""
     
-    if not torch.cuda.is_available():
-        print("❌ CUDA НЕ ДОСТУПНА! Контейнер будет работать на CPU (очень медленно)")
-        return False
+    def __init__(self):
+        self.results: Dict[str, bool] = {}
+        self.start_time = datetime.now()
+        
+    def run_all_checks(self) -> bool:
+        """Запускает все проверки и возвращает общий результат."""
+        self._print_header("НАЧАЛО ПРОВЕРКИ КОНТЕЙНЕРА")
+        
+        # Информация о системе
+        self._log_system_info()
+        
+        # Список проверок
+        checks = [
+            ("CUDA/GPU", self._check_cuda),
+            ("OpenMP", self._check_openmp),
+            ("Память (RAM/GPU)", self._check_memory),
+            ("Место на диске", self._check_disk_space),
+            ("Загрузка модели", self._check_model_loading),
+            ("Зависимости LLaVA", self._check_llava_deps)
+        ]
+        
+        # Запускаем проверки
+        for name, check_func in checks:
+            self._run_check(name, check_func)
+        
+        # Выводим итоги
+        return self._print_summary()
     
-    try:
-        print(f"CUDA version: {torch.version.cuda}")
-        print(f"GPU count: {torch.cuda.device_count()}")
-        print(f"GPU name: {torch.cuda.get_device_name(0)}")
-        
-        # Тест 1: Простое создание тензора на GPU
-        print("  Тест 1: Создание тензора на GPU...")
-        x = torch.tensor([1.0, 2.0, 3.0]).cuda()
-        print(f"    ✅ Тензор создан: {x.cpu().numpy()}")
-        
-        # Тест 2: Простое умножение матриц
-        print("  Тест 2: Умножение матриц...")
-        a = torch.randn(3, 3).cuda()
-        b = torch.randn(3, 3).cuda()
-        c = torch.mm(a, b)
-        print(f"    ✅ Умножение работает: {c.shape}")
-        
-        # Тест 3: Операции с градиентами
-        print("  Тест 3: Операции с градиентами...")
-        a = torch.randn(3, 3, requires_grad=True).cuda()
-        b = torch.randn(3, 3, requires_grad=True).cuda()
-        c = torch.mm(a, b)
-        loss = c.sum()
-        loss.backward()
-        print(f"    ✅ Обратное распространение работает")
-        
-        print("✅ Все CUDA тесты пройдены успешно!")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Ошибка при работе с CUDA: {e}")
-        print("\nДетальная диагностика:")
-        traceback.print_exc()
-        
-        # Дополнительная диагностика
-        print("\n📊 Дополнительная информация:")
-        print(f"  CUDA версия драйвера: {torch.cuda.get_device_properties(0).major}.{torch.cuda.get_device_properties(0).minor}")
-        print(f"  Total memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-        print(f"  Multiprocessors: {torch.cuda.get_device_properties(0).multi_processor_count}")
-        
-        # Проверка CUBLAS
+    def _run_check(self, name: str, check_func) -> None:
+        """Запускает отдельную проверку с обработкой ошибок."""
         try:
-            torch.ones(1).cuda() @ torch.ones(1).cuda()
+            logger.info(f"🔍 Проверяю: {name}...")
+            result = check_func()
+            self.results[name] = result
+            status = "✅ Успешно" if result else "❌ Провал"
+            logger.info(f"{status} - {name}")
         except Exception as e:
-            print(f"  ❌ CUBLAS ошибка: {e}")
+            logger.error(f"💥 Ошибка при проверке {name}: {e}")
+            logger.debug(traceback.format_exc())
+            self.results[name] = False
+    
+    def _log_system_info(self):
+        """Логирует основную информацию о системе."""
+        logger.info(f"🐍 Python: {sys.version.split()[0]}")
+        logger.info(f"🔥 PyTorch: {torch.__version__}")
+        logger.info(f"🎯 CUDA (сборка): {torch.version.cuda}")
         
-        return False
-
-def check_openmp():
-    """Проверка OpenMP (важно для OpenCV)."""
-    print("\n🔍 ПРОВЕРКА OPENMP:")
-    try:
-        cv2.setNumThreads(4)
-        threads = cv2.getNumThreads()
-        print(f"✅ OpenCV threads: {threads}")
+    def _check_cuda(self) -> bool:
+        """Проверяет доступность GPU и CUDA."""
+        logger.info("  CUDA доступна: %s", torch.cuda.is_available())
+        
+        if not torch.cuda.is_available():
+            logger.warning("  ⚠️ Контейнер будет работать на CPU (медленно)")
+            return False
+        
+        # Собираем информацию о GPU
+        gpu_name = torch.cuda.get_device_name(0)
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+        cuda_version = torch.version.cuda
+        
+        logger.info(f"  🖥️  GPU: {gpu_name}")
+        logger.info(f"  📊 Память GPU: {gpu_memory:.1f} GB")
+        logger.info(f"  🎯 CUDA версия: {cuda_version}")
+        
+        # Тесты CUDA
+        tests = [
+            ("создание тензора", self._test_tensor_creation),
+            ("умножение матриц", self._test_matrix_multiplication),
+            ("обратное распространение", self._test_backprop)
+        ]
+        
+        for name, test_func in tests:
+            if not test_func():
+                return False
+        
+        logger.info("  ✅ Все CUDA тесты пройдены")
         return True
-    except Exception as e:
-        print(f"❌ Ошибка OpenMP: {e}")
-        traceback.print_exc()
-        return False
-
-def check_memory():
-    """Проверка доступной памяти."""
-    print("\n🔍 ПРОВЕРКА ПАМЯТИ:")
-    try:
+    
+    def _test_tensor_creation(self) -> bool:
+        """Тест создания тензора на GPU."""
+        try:
+            x = torch.tensor([1.0, 2.0, 3.0]).cuda()
+            logger.debug(f"    Тензор создан: {x.cpu().numpy()}")
+            return True
+        except Exception as e:
+            logger.error(f"    ❌ Ошибка создания тензора: {e}")
+            return False
+    
+    def _test_matrix_multiplication(self) -> bool:
+        """Тест умножения матриц на GPU."""
+        try:
+            a = torch.randn(100, 100).cuda()
+            b = torch.randn(100, 100).cuda()
+            c = a @ b
+            logger.debug(f"    Умножение матриц работает: {c.shape}")
+            return True
+        except Exception as e:
+            logger.error(f"    ❌ Ошибка умножения матриц: {e}")
+            return False
+    
+    def _test_backprop(self) -> bool:
+        """Тест обратного распространения на GPU."""
+        try:
+            a = torch.randn(10, 10, requires_grad=True).cuda()
+            b = torch.randn(10, 10, requires_grad=True).cuda()
+            c = (a @ b).sum()
+            c.backward()
+            logger.debug(f"    Обратное распространение работает")
+            return True
+        except Exception as e:
+            logger.error(f"    ❌ Ошибка обратного распространения: {e}")
+            return False
+    
+    def _check_openmp(self) -> bool:
+        """Проверяет работу OpenMP (важно для OpenCV)."""
+        try:
+            cv2.setNumThreads(4)
+            threads = cv2.getNumThreads()
+            logger.info(f"  🧵 Потоков OpenCV: {threads}")
+            return True
+        except Exception as e:
+            logger.error(f"  ❌ Ошибка OpenMP: {e}")
+            return False
+    
+    def _check_memory(self) -> bool:
+        """Проверяет доступную память."""
+        # Проверка RAM
+        mem = psutil.virtual_memory()
+        logger.info(f"  💾 RAM: {mem.available/1e9:.1f} ГБ свободно / {mem.total/1e9:.1f} ГБ всего")
+        
+        # Проверка GPU памяти
         if torch.cuda.is_available():
             free, total = torch.cuda.mem_get_info()
-            print(f"GPU Memory: {free/1e9:.2f}GB free / {total/1e9:.2f}GB total")
-        
-        # Проверка RAM
-        import psutil
-        mem = psutil.virtual_memory()
-        print(f"RAM: {mem.available/1e9:.2f}GB available / {mem.total/1e9:.2f}GB total")
+            logger.info(f"  🎮 GPU память: {free/1e9:.1f} ГБ свободно / {total/1e9:.1f} ГБ всего")
+            
+            # Предупреждение если мало памяти
+            if free < 2e9:  # меньше 2GB
+                logger.warning("  ⚠️ Мало свободной GPU памяти!")
         
         return True
-    except Exception as e:
-        print(f"❌ Ошибка при проверке памяти: {e}")
-        traceback.print_exc()
-        return False
-
-def check_tiny_model():
-    """Загрузка микро-модели для проверки."""
-    print("\n🔍 ПРОВЕРКА ЗАГРУЗКИ МОДЕЛИ:")
-    try:
-        from transformers import AutoModel, AutoTokenizer
+    
+    def _check_disk_space(self) -> bool:
+        """Проверяет свободное место на диске."""
+        try:
+            disk = psutil.disk_usage('/')
+            free_gb = disk.free / 1e9
+            total_gb = disk.total / 1e9
+            
+            logger.info(f"  💽 Диск: {free_gb:.1f} ГБ свободно / {total_gb:.1f} ГБ всего")
+            
+            if free_gb < 10:
+                logger.warning("  ⚠️ Мало места! Модели LLaVA 7B требуют ~15 ГБ")
+            else:
+                logger.info("  ✅ Места достаточно")
+            
+            return True
+        except Exception as e:
+            logger.error(f"  ❌ Ошибка проверки диска: {e}")
+            return False
+    
+    def _check_model_loading(self) -> bool:
+        """Проверяет загрузку и инференс маленькой модели."""
+        try:
+            from transformers import AutoModel, AutoTokenizer
+            
+            logger.info("  Загружаю тестовую модель tiny-random-gpt2...")
+            
+            # Загружаем маленькую модель для теста
+            model_name = "hf-internal-testing/tiny-random-gpt2"
+            
+            logger.info("    Токенизатор...")
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            
+            logger.info("    Модель...")
+            model = AutoModel.from_pretrained(model_name)
+            
+            # Перемещаем на GPU если доступно
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            model = model.to(device)
+            logger.info(f"    Модель на устройстве: {device}")
+            
+            # Тестовый инференс
+            logger.info("    Запускаю инференс...")
+            inputs = tokenizer("Hello, how are you?", return_tensors="pt").to(device)
+            
+            with torch.no_grad():
+                outputs = model(**inputs)
+            
+            logger.info(f"    ✅ Инференс работает! Размер выхода: {outputs.last_hidden_state.shape}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"  ❌ Ошибка загрузки модели: {e}")
+            logger.debug(traceback.format_exc())
+            return False
+    
+    def _check_llava_deps(self) -> bool:
+        """Проверяет зависимости для LLaVA."""
+        logger.info("  Проверка зависимостей для LLaVA...")
+        all_ok = True
         
-        print("Загружаем tiny модель (чтобы проверить transformers)...")
-        model_name = "hf-internal-testing/tiny-random-gpt2"
+        # Проверяем bitsandbytes
+        try:
+            import bitsandbytes as bnb
+            logger.info(f"    ✅ bitsandbytes v{bnb.__version__}")
+            
+            # Тест bitsandbytes с CUDA
+            if torch.cuda.is_available():
+                try:
+                    linear = bnb.nn.Linear8bitLt(10, 10, has_fp16_weights=False).cuda()
+                    x = torch.randn(5, 10).cuda()
+                    _ = linear(x)
+                    logger.info("    ✅ bitsandbytes работает с CUDA")
+                except Exception as e:
+                    logger.error(f"    ❌ bitsandbytes не работает с CUDA: {e}")
+                    all_ok = False
+                    
+        except ImportError:
+            logger.warning("    ⚠️ bitsandbytes не установлен (нужен для LLaVA)")
+            all_ok = False
         
-        print("  Загрузка токенизатора...")
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Проверяем accelerate
+        try:
+            from accelerate import Accelerator
+            accelerator = Accelerator()
+            logger.info(f"    ✅ accelerate доступен")
+        except Exception as e:
+            logger.error(f"    ❌ accelerate: {e}")
+            all_ok = False
         
-        print("  Загрузка модели...")
-        model = AutoModel.from_pretrained(model_name)
+        return all_ok
+    
+    def _print_header(self, title: str):
+        """Печатает красивый заголовок."""
+        line = "=" * 60
+        print(f"\n{line}")
+        print(f"🚀 {title}")
+        print(line)
+    
+    def _print_summary(self) -> bool:
+        """Печатает итоги проверки."""
+        self._print_header("ИТОГИ ПРОВЕРКИ")
         
-        # Перемещаем на GPU если есть
-        if torch.cuda.is_available():
-            print("  Перемещение модели на GPU...")
-            model = model.cuda()
-            print("✅ Модель загружена и перемещена на GPU")
+        all_passed = True
+        for name, passed in self.results.items():
+            status = "✅" if passed else "❌"
+            print(f"{status} {name}")
+            if not passed:
+                all_passed = False
+        
+        # Время выполнения
+        elapsed = datetime.now() - self.start_time
+        print(f"\n⏱️  Время проверки: {elapsed.total_seconds():.1f} сек")
+        
+        print("=" * 60)
+        
+        if all_passed:
+            print("✅ КОНТЕЙНЕР ГОТОВ К РАБОТЕ!")
+            return True
         else:
-            print("✅ Модель загружена (CPU)")
-        
-        # Простой тест
-        print("  Подготовка входных данных...")
-        inputs = tokenizer("Hello", return_tensors="pt")
-        
-        if torch.cuda.is_available():
-            inputs = {k: v.cuda() for k, v in inputs.items()}
-        
-        print("  Запуск инференса...")
-        with torch.no_grad():  # Отключаем градиенты для экономии памяти
-            outputs = model(**inputs)
-        
-        print(f"✅ Инференс работает: {outputs.last_hidden_state.shape}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Ошибка загрузки модели: {e}")
-        print("\nДетальная диагностика:")
-        traceback.print_exc()
-        
-        # Проверка доступности transformers
-        print(f"\nTransformers version: {transformers.__version__}")
-        
-        return False
+            print("⚠️ ЕСТЬ ПРОБЛЕМЫ:")
+            if not self.results.get("CUDA/GPU", False):
+                print("  • Проверьте драйверы NVIDIA и CUDA в контейнере")
+            if not self.results.get("Загрузка модели", False):
+                print("  • Проблема с загрузкой моделей (интернет? права?)")
+            if not self.results.get("Зависимости LLaVA", False):
+                print("  • Установите зависимости для LLaVA")
+            return False
 
-def check_llava_install():
-    """Проверка что LLaVA можно будет установить."""
-    print("\n🔍 ПРОВЕРКА LLAVA ЗАВИСИМОСТЕЙ:")
-    all_ok = True
-    
-    try:
-        import bitsandbytes
-        print(f"✅ bitsandbytes: {bitsandbytes.__version__}")
-        
-        # Проверка что bitsandbytes работает с CUDA
-        if torch.cuda.is_available():
-            try:
-                # Простой тест bitsandbytes
-                linear = bitsandbytes.nn.Linear8bitLt(10, 10, has_fp16_weights=False).cuda()
-                x = torch.randn(5, 10).cuda()
-                y = linear(x)
-                print("  ✅ bitsandbytes работает с CUDA")
-            except Exception as e:
-                print(f"  ❌ bitsandbytes ошибка с CUDA: {e}")
-                all_ok = False
-    except ImportError:
-        print("⚠️ bitsandbytes не установлен (будет нужен для LLaVA)")
-        all_ok = False
-    except Exception as e:
-        print(f"❌ Ошибка с bitsandbytes: {e}")
-        traceback.print_exc()
-        all_ok = False
-    
-    try:
-        from accelerate import Accelerator
-        acc = Accelerator()
-        print(f"✅ accelerate: доступен")
-    except Exception as e:
-        print(f"❌ accelerate: {e}")
-        traceback.print_exc()
-        all_ok = False
-    
-    return all_ok
-
-def check_disk_space():
-    """Проверка места на диске (для скачивания моделей)."""
-    print("\n🔍 ПРОВЕРКА ДИСКА:")
-    try:
-        import shutil
-        
-        total, used, free = shutil.disk_usage("/")
-        print(f"Disk: {free/1e9:.2f}GB free / {total/1e9:.2f}GB total")
-        
-        if free < 10e9:  # меньше 10GB
-            print("⚠️ МАЛО МЕСТА! Модели LLaVA 7B весят ~15GB")
-        else:
-            print("✅ Места достаточно")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Ошибка при проверке диска: {e}")
-        traceback.print_exc()
-        return False
 
 def main():
-    """Главная функция проверки."""
-    print("=" * 60)
-    print("🚀 ПРОВЕРКА DOCKER КОНТЕЙНЕРА ДЛЯ ML")
-    print("=" * 60)
-    
-    # Информация о системе
-    print(f"Python: {sys.version}")
-    print(f"PyTorch: {torch.__version__}")
-    print(f"CUDA Build: {torch.version.cuda}")
-    
-    # Проверки
-    checks = [
-        ("CUDA/GPU", check_cuda),
-        ("OpenMP", check_openmp),
-        ("Memory", check_memory),
-        ("Disk", check_disk_space),
-        ("Tiny Model", check_tiny_model),
-        ("LLaVA Deps", check_llava_install)
-    ]
-    
-    results = []
-    for name, func in checks:
-        try:
-            print(f"\n{'='*40}")
-            print(f"📌 {name}...")
-            print(f"{'='*40}")
-            result = func()
-            results.append((name, result))
-        except Exception as e:
-            print(f"❌ Критическая ошибка при проверке {name}: {e}")
-            traceback.print_exc()
-            results.append((name, False))
-    
-    # Итог
-    print("\n" + "=" * 60)
-    print("📊 ИТОГИ ПРОВЕРКИ:")
-    print("=" * 60)
-    
-    all_ok = True
-    for name, ok in results:
-        status = "✅ OK" if ok else "❌ FAIL"
-        print(f"{status} - {name}")
-        if not ok:
-            all_ok = False
-    
-    print("=" * 60)
-    if all_ok:
-        print("✅ КОНТЕЙНЕР ПОЛНОСТЬЮ ГОТОВ К РАБОТЕ!")
-    else:
-        print("⚠️ ЕСТЬ ПРОБЛЕМЫ, требующие решения")
-        print("\nРекомендации:")
-        if not results[0][1]:  # CUDA failed
-            print("  • Проверьте установку CUDA библиотек в контейнере")
-            print("  • Убедитесь что драйвер NVIDIA на хосте поддерживает CUDA 13.0")
-        if not results[4][1]:  # Tiny model failed
-            print("  • Проблема с загрузкой/инференсом модели")
-            print("  • Проверьте transformers и его зависимость от CUDA")
-    
-    return 0 if all_ok else 1
+    """Точка входа."""
+    checker = ContainerHealthCheck()
+    success = checker.run_all_checks()
+    return 0 if success else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

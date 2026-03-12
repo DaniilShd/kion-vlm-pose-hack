@@ -9,7 +9,7 @@ import json
 import time
 import logging
 from datetime import datetime
-from .stgcn_converter import STGCNConverter
+from ..utils.stgcn_converter import STGCNConverter
 
 class STGCNRecognizer:
     """

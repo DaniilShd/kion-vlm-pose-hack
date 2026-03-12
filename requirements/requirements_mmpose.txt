@@ -1,0 +1,16 @@
+torch==2.10.0+cu130
+torchvision==0.25.0+cu130
+torchaudio==2.10.0+cu130
+numpy==2.1.1
+scipy==1.15.3
+opencv-python==4.13.0.92
+matplotlib==3.10.8
+mmcv==2.1.0
+mmengine
+mmaction2
+openmim
+decord
+einops
+tqdm
+pandas==2.3.3
+pyyaml==6.0.3

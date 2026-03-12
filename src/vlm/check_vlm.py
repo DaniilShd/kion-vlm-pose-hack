@@ -58,7 +58,14 @@ if ret:
     image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     prompt = config['prompts']['moderation']
     
-    inputs = model.build_chat_input(prompt, history=[], images=[image]).to(model.device)
+    # Правильный способ для GLM-4V
+    inputs = tokenizer.apply_chat_template(
+        [{"role": "user", "image": image, "content": prompt}],
+        add_generation_prompt=True,
+        tokenize=True,
+        return_tensors="pt",
+        return_dict=True
+    ).to(model.device)
     
     with torch.no_grad():
         outputs = model.generate(
@@ -68,6 +75,7 @@ if ret:
             top_p=config['generation']['top_p']
         )
     
-    response = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)
-    print("\n Результат")
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    print("\n" + "="*50)
     print(response)
+    print("="*50)

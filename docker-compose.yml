@@ -1,0 +1,79 @@
+version: '3.9'
+
+services:
+  mmpose:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mmpose
+    container_name: mmpose
+    runtime: nvidia
+    environment:
+      - PATH=/venv/bin:$PATH
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./cache:/app/cache
+      - ./data:/app/data  # Общая папка для файлов!
+      - ./logs:/app/logs
+    command: python src/mmpose_processor.py
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  yolo:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.yolo
+    container_name: yolo
+    runtime: nvidia
+    environment:
+      - PATH=/venv/bin:$PATH
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - WATCH_FOLDER=/app/data  # Следим за папкой
+    volumes:
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./cache:/app/cache
+      - ./data:/app/data  # Та же общая папка!
+      - ./logs:/app/logs
+    command: python src/yolo_watcher.py  # Скрипт, который следит за новыми файлами
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  vlm:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.vlm
+    container_name: vlm
+    runtime: nvidia
+    environment:
+      - PATH=/venv/bin:$PATH
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - WATCH_FOLDER=/app/data
+    volumes:
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./cache:/app/cache
+      - ./data:/app/data  # И здесь та же папка!
+      - ./logs:/app/logs
+    command: python src/vlm_watcher.py
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
